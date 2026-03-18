@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "tpacobblemon",
+  "version": "${version}",
+  "name": "TPA Cobblemon",
+  "description": "Psychic-powered teleportation for Cobblemon servers. Requires a Psychic-type Pokémon in your party; costs XP based on distance.",
+  "authors": [
+    "Kewz4"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.cobbletp.tpacobblemon.TpaCobblemon"
+    ]
+  },
+  "mixins": [],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "cobblemon": "*"
+  }
+}
