@@ -8,29 +8,44 @@ import net.minecraft.entity.player.PlayerEntity;
  * <p><b>XP cost formula</b> (all values in raw XP points):
  * <pre>
  *   base            = 50 XP  (minimum cost, prevents free spam)
- *   distanceCost    = distance (2-D horizontal, in blocks) × 0.10
- *   crossDimPenalty = +300 XP (nether/end teleports are expensive)
- *   total           = clamp(base + distanceCost [+ crossDimPenalty], 50, 800)
+ *   distanceCost    = distance (2-D horizontal, in blocks) × 0.30
+ *   crossDimPenalty = +5 000 XP (cross-dimension penalty)
+ *   total (same dim)  = clamp(base + distanceCost,                     50, 15 345)
+ *   total (cross dim) = clamp(base + distanceCost + crossDimPenalty,   50, 52 220)
  * </pre>
  *
- * <p>Example costs at sea level:
+ * <p>Level caps (using vanilla XP table):
  * <ul>
- *   <li>Same spot              →  50 XP  (≈ level 4)</li>
- *   <li>100 blocks             →  60 XP  (≈ level 5)</li>
- *   <li>500 blocks             → 100 XP  (≈ level 7)</li>
- *   <li>1 000 blocks           → 150 XP  (≈ level 9)</li>
- *   <li>3 000 blocks           → 350 XP  (≈ level 16)</li>
- *   <li>5 000 blocks           → 550 XP  (≈ level 20, capped)</li>
- *   <li>Cross-dimension nearby → 350 XP</li>
- *   <li>Cross-dimension + far  → 800 XP  (hard cap)</li>
+ *   <li>Same dimension  → hard cap at {@code xpForLevel(75)}  = 15 345 XP</li>
+ *   <li>Cross dimension → hard cap at {@code xpForLevel(125)} = 52 220 XP</li>
+ * </ul>
+ *
+ * <p>Example costs (same dimension, server players spread ~50 000 blocks from spawn):
+ * <ul>
+ *   <li>Same spot / nearby (0 blocks)    →    50 XP  (≈ level  5)</li>
+ *   <li>500 blocks                        →   200 XP  (≈ level 11)</li>
+ *   <li>1 000 blocks                      →   350 XP  (≈ level 16)</li>
+ *   <li>5 000 blocks                      → 1 550 XP  (≈ level 32)</li>
+ *   <li>10 000 blocks                     → 3 050 XP  (≈ level 40)</li>
+ *   <li>25 000 blocks                     → 7 550 XP  (≈ level 57)</li>
+ *   <li>50 000 blocks (typical far)       →15 345 XP  (= level 75, cap)</li>
+ *   <li>Cross-dim nearby                  → 5 050 XP  (≈ level 49)</li>
+ *   <li>Cross-dim + 50 000 raw blocks     →20 050 XP  (≈ level 100)</li>
+ *   <li>Cross-dim max                     →52 220 XP  (= level 125, cap)</li>
  * </ul>
  */
 public final class XpUtil {
 
-    public static final int BASE_COST              = 50;
-    public static final double DIST_MULTIPLIER     = 0.10;   // XP per block
-    public static final int CROSS_DIM_PENALTY      = 300;
-    public static final int MAX_COST               = 800;
+    /** Minimum cost – prevents free-spam at zero distance. */
+    public static final int BASE_COST          = 50;
+    /** Raw XP per block of horizontal distance. */
+    public static final double DIST_MULTIPLIER = 0.30;
+    /** Extra XP added whenever the two players are in different dimensions. */
+    public static final int CROSS_DIM_PENALTY  = 5_000;
+    /** Hard cap for same-dimension teleports (= xpForLevel(75)). */
+    public static final int MAX_COST_SAME      = 15_345;
+    /** Hard cap for cross-dimension teleports (= xpForLevel(125)). */
+    public static final int MAX_COST_CROSS     = 52_220;
 
     private XpUtil() {}
 
@@ -39,14 +54,15 @@ public final class XpUtil {
     /**
      * Calculates the XP cost for a teleport.
      *
-     * @param horizontalDistance 2-D (XZ-plane) block distance between the two players;
-     *                           ignored when {@code crossDimension} is {@code true}.
+     * @param horizontalDistance 2-D (XZ-plane) raw block distance between the two players
+     *                           (pass the actual distance even for cross-dimension teleports).
      * @param crossDimension     {@code true} if the players are in different worlds.
      */
     public static int calculateCost(double horizontalDistance, boolean crossDimension) {
         int cost = BASE_COST + (int) (horizontalDistance * DIST_MULTIPLIER);
         if (crossDimension) cost += CROSS_DIM_PENALTY;
-        return Math.min(cost, MAX_COST);
+        int cap = crossDimension ? MAX_COST_CROSS : MAX_COST_SAME;
+        return Math.min(cost, cap);
     }
 
     // ──────────────────────────────── XP helpers ─────────────────────────────

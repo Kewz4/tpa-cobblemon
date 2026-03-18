@@ -66,17 +66,13 @@ public class TpaCommand {
         boolean crossDimension = !requester.getWorld().getRegistryKey()
                 .equals(target.getWorld().getRegistryKey());
 
-        double horizontalDistance;
-        if (crossDimension) {
-            // Horizontal distance is meaningless cross-dimension; flat penalty is applied in XpUtil
-            horizontalDistance = 0;
-        } else {
-            Vec3d rp = requester.getPos();
-            Vec3d tp = target.getPos();
-            double dx = rp.x - tp.x;
-            double dz = rp.z - tp.z;
-            horizontalDistance = Math.sqrt(dx * dx + dz * dz);
-        }
+        // Always compute raw XZ distance – even cross-dimension coords give a useful
+        // scale signal (nether XZ is ~1/8 overworld, end varies, etc.).
+        Vec3d rp = requester.getPos();
+        Vec3d tp = target.getPos();
+        double dx = rp.x - tp.x;
+        double dz = rp.z - tp.z;
+        double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
 
         int xpCost = XpUtil.calculateCost(horizontalDistance, crossDimension);
 
