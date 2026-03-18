@@ -20,6 +20,9 @@ public class TpaCobblemon implements ModInitializer {
     public void onInitialize() {
         LOGGER.info("[TPA Cobblemon] Initializing...");
 
+        // Load (or generate) config/tpacobblemon.json
+        TpaConfig.load();
+
         // Register all commands
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             TpaCommand.register(dispatcher);
@@ -35,6 +38,6 @@ public class TpaCobblemon implements ModInitializer {
             }
         });
 
-        LOGGER.info("[TPA Cobblemon] Ready! Use /tpa <player> to teleport (requires a Psychic Pokémon).");
+        LOGGER.info("[TPA Cobblemon] Ready! Use /tpa <player> to teleport (requires a Psychic or Flying Pokémon).");
     }
 }

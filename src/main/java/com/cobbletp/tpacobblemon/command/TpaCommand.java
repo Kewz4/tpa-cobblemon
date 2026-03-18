@@ -1,5 +1,6 @@
 package com.cobbletp.tpacobblemon.command;
 
+import com.cobbletp.tpacobblemon.TpaConfig;
 import com.cobbletp.tpacobblemon.TpaRequest;
 import com.cobbletp.tpacobblemon.manager.TpaRequestManager;
 import com.cobbletp.tpacobblemon.util.CobblemonUtil;
@@ -20,8 +21,14 @@ import net.minecraft.util.math.Vec3d;
  *
  * Requirements:
  *  1. Sender must not be on cooldown.
- *  2. Sender must have at least one non-fainted Psychic-type Pokémon in their party.
+ *  2. Sender must have at least one non-fainted Psychic-type OR Flying-type
+ *     Pokémon in their party.
  *  3. Sender must have enough XP to cover the distance-based cost.
+ *
+ * Cost rules:
+ *  - Psychic-type → standard cost  (multiplier 1.0)
+ *  - Flying-type  → 50 % surcharge (multiplier from config)
+ *  - Both types   → Psychic wins (cheaper); player is informed + shown a tip.
  */
 public class TpaCommand {
 
@@ -55,26 +62,34 @@ public class TpaCommand {
             return 0;
         }
 
-        // ── Psychic Pokémon check (Cobblemon integration) ────────────────────
+        // ── Pokémon check ────────────────────────────────────────────────────
         String psychicPokemon = CobblemonUtil.findPsychicPokemon(requester);
-        if (psychicPokemon == null) {
-            requester.sendMessage(MessageUtil.noPsychicPokemon());
+        String flyingPokemon  = CobblemonUtil.findFlyingPokemon(requester);
+
+        if (psychicPokemon == null && flyingPokemon == null) {
+            requester.sendMessage(MessageUtil.noPokemon());
             return 0;
         }
+
+        // ── Determine which type to use ──────────────────────────────────────
+        // Psychic is always cheaper; prefer it when the player has both.
+        final boolean usingFlying  = (psychicPokemon == null);
+        final boolean hasBothTypes = (psychicPokemon != null && flyingPokemon != null);
+        final String  pokemonName  = usingFlying ? flyingPokemon : psychicPokemon;
+        final double  multiplier   = usingFlying ? TpaConfig.get().flyingCostMultiplier : 1.0;
 
         // ── XP cost calculation ──────────────────────────────────────────────
         boolean crossDimension = !requester.getWorld().getRegistryKey()
                 .equals(target.getWorld().getRegistryKey());
 
-        // Always compute raw XZ distance – even cross-dimension coords give a useful
-        // scale signal (nether XZ is ~1/8 overworld, end varies, etc.).
+        // Always compute raw XZ distance – meaningful even cross-dimension.
         Vec3d rp = requester.getPos();
         Vec3d tp = target.getPos();
         double dx = rp.x - tp.x;
         double dz = rp.z - tp.z;
         double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
 
-        int xpCost = XpUtil.calculateCost(horizontalDistance, crossDimension);
+        int xpCost = XpUtil.calculateCost(horizontalDistance, crossDimension, multiplier);
 
         // ── Pre-flight XP check ──────────────────────────────────────────────
         int currentXp = XpUtil.getTotalXp(requester);
@@ -92,7 +107,14 @@ public class TpaCommand {
         manager.addRequest(request, source.getServer());
 
         // ── Feedback ─────────────────────────────────────────────────────────
-        requester.sendMessage(MessageUtil.psychicPokemonFound(psychicPokemon));
+        if (hasBothTypes) {
+            requester.sendMessage(MessageUtil.usingPsychicOverFlying(psychicPokemon, flyingPokemon));
+        } else if (usingFlying) {
+            requester.sendMessage(MessageUtil.flyingPokemonFound(pokemonName));
+        } else {
+            requester.sendMessage(MessageUtil.psychicPokemonFound(pokemonName));
+        }
+
         requester.sendMessage(MessageUtil.requestSent(
                 target.getName().getString(), xpCost, TpaRequest.TIMEOUT_MS / 1000L));
 

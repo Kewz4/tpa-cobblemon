@@ -8,7 +8,7 @@ import java.lang.reflect.Method;
 /**
  * Cobblemon API wrapper using reflection so the mod compiles (and loads) even if
  * Cobblemon is absent.  At runtime on a Cobblemon server all calls will succeed
- * normally; on a server without Cobblemon {@link #findPsychicPokemon} returns null.
+ * normally; on a server without Cobblemon all {@code find*} methods return null.
  *
  * Tested against Cobblemon 1.6.x (Fabric, 1.21.1).
  */
@@ -36,20 +36,19 @@ public final class CobblemonUtil {
         if (resolved) return cobblemonInstance != null;
         resolved = true;
         try {
-            Class<?> cobblemonCls    = Class.forName("com.cobblemon.mod.common.Cobblemon");
-            Class<?> storageCls      = Class.forName("com.cobblemon.mod.common.api.storage.StorageManager");
-            Class<?> pokemonCls      = Class.forName("com.cobblemon.mod.common.pokemon.Pokemon");
-            Class<?> elementalTypeCls= Class.forName("com.cobblemon.mod.common.api.types.ElementalType");
+            Class<?> cobblemonCls     = Class.forName("com.cobblemon.mod.common.Cobblemon");
+            Class<?> storageCls       = Class.forName("com.cobblemon.mod.common.api.storage.StorageManager");
+            Class<?> pokemonCls       = Class.forName("com.cobblemon.mod.common.pokemon.Pokemon");
+            Class<?> elementalTypeCls = Class.forName("com.cobblemon.mod.common.api.types.ElementalType");
 
             cobblemonInstance = cobblemonCls.getField("INSTANCE").get(null);
-            getStorage    = cobblemonCls.getMethod("getStorage");
-            getParty      = storageCls.getMethod("getParty", ServerPlayerEntity.class);
-            isFainted     = pokemonCls.getMethod("isFainted");
-            getTypes      = pokemonCls.getMethod("getTypes");
-            getDisplayName= pokemonCls.getMethod("getDisplayName");
-            getString     = Class.forName("net.minecraft.text.MutableText")
-                                .getMethod("getString");
-            getTypeName   = elementalTypeCls.getMethod("getName");
+            getStorage     = cobblemonCls.getMethod("getStorage");
+            getParty       = storageCls.getMethod("getParty", ServerPlayerEntity.class);
+            isFainted      = pokemonCls.getMethod("isFainted");
+            getTypes       = pokemonCls.getMethod("getTypes");
+            getDisplayName = pokemonCls.getMethod("getDisplayName");
+            getString      = Class.forName("net.minecraft.text.MutableText").getMethod("getString");
+            getTypeName    = elementalTypeCls.getMethod("getName");
 
             TpaCobblemon.LOGGER.info("[TPA Cobblemon] Cobblemon API linked successfully.");
             return true;
@@ -62,12 +61,15 @@ public final class CobblemonUtil {
     }
 
     /**
-     * Finds the first non-fainted Psychic-type Pokémon in the player's party.
+     * Finds the first non-fainted Pokémon of the given elemental type in the
+     * player's party.
      *
-     * @return the display name of the Psychic Pokémon (e.g. "Ralts"), or
-     *         {@code null} if the player has none (or Cobblemon is not installed).
+     * @param typeName case-insensitive Cobblemon type name, e.g. {@code "psychic"}
+     *                 or {@code "flying"}.
+     * @return display name of the matching Pokémon (e.g. {@code "Ralts"}),
+     *         or {@code null} if none found (or Cobblemon is not installed).
      */
-    public static String findPsychicPokemon(ServerPlayerEntity player) {
+    public static String findPokemonOfType(ServerPlayerEntity player, String typeName) {
         if (!init()) return null;
         try {
             Object storage = getStorage.invoke(cobblemonInstance);
@@ -76,14 +78,11 @@ public final class CobblemonUtil {
 
             for (Object pokemon : (Iterable<?>) party) {
                 if (pokemon == null) continue;
+                if ((boolean) isFainted.invoke(pokemon)) continue;
 
-                boolean fainted = (boolean) isFainted.invoke(pokemon);
-                if (fainted) continue;
-
-                Iterable<?> types = (Iterable<?>) getTypes.invoke(pokemon);
-                for (Object type : types) {
+                for (Object type : (Iterable<?>) getTypes.invoke(pokemon)) {
                     String name = (String) getTypeName.invoke(type);
-                    if ("psychic".equalsIgnoreCase(name)) {
+                    if (typeName.equalsIgnoreCase(name)) {
                         Object displayName = getDisplayName.invoke(pokemon);
                         return (String) getString.invoke(displayName);
                     }
@@ -95,9 +94,17 @@ public final class CobblemonUtil {
         return null;
     }
 
-    /**
-     * @return {@code true} if the player has at least one non-fainted Psychic-type Pokémon.
-     */
+    /** Finds the first non-fainted Psychic-type Pokémon in the player's party. */
+    public static String findPsychicPokemon(ServerPlayerEntity player) {
+        return findPokemonOfType(player, "psychic");
+    }
+
+    /** Finds the first non-fainted Flying-type Pokémon in the player's party. */
+    public static String findFlyingPokemon(ServerPlayerEntity player) {
+        return findPokemonOfType(player, "flying");
+    }
+
+    /** @return {@code true} if the player has at least one non-fainted Psychic-type Pokémon. */
     public static boolean hasPsychicPokemon(ServerPlayerEntity player) {
         return findPsychicPokemon(player) != null;
     }

@@ -1,67 +1,68 @@
 package com.cobbletp.tpacobblemon.util;
 
+import com.cobbletp.tpacobblemon.TpaConfig;
 import net.minecraft.entity.player.PlayerEntity;
 
 /**
  * Utilities for working with player experience points.
  *
- * <p><b>XP cost formula</b> (all values in raw XP points):
+ * <p><b>XP cost formula</b> — all tunable values live in {@code config/tpacobblemon.json}:
  * <pre>
- *   base            = 50 XP  (minimum cost, prevents free spam)
- *   distanceCost    = distance (2-D horizontal, in blocks) × 0.30
- *   crossDimPenalty = +5 000 XP (cross-dimension penalty)
- *   total (same dim)  = clamp(base + distanceCost,                     50, 15 345)
- *   total (cross dim) = clamp(base + distanceCost + crossDimPenalty,   50, 52 220)
+ *   raw  = baseCost + floor(distance × distMultiplier)
+ *          [+ crossDimPenalty  when cross-dimension]
+ *   cost = clamp(floor(raw × multiplier), 0, maxCostSame | maxCostCross)
  * </pre>
  *
- * <p>Level caps (using vanilla XP table):
+ * <p>Default multipliers:
  * <ul>
- *   <li>Same dimension  → hard cap at {@code xpForLevel(75)}  = 15 345 XP</li>
- *   <li>Cross dimension → hard cap at {@code xpForLevel(125)} = 52 220 XP</li>
+ *   <li>Psychic-type Pokémon → multiplier 1.0 (standard cost)</li>
+ *   <li>Flying-type Pokémon  → multiplier 1.5 (50 % more expensive)</li>
  * </ul>
  *
- * <p>Example costs (same dimension, server players spread ~50 000 blocks from spawn):
+ * <p>Default example costs (Psychic, same dimension):
  * <ul>
- *   <li>Same spot / nearby (0 blocks)    →    20 XP  (≈ level  3)</li>
- *   <li>500 blocks                        →    95 XP  (≈ level  7)</li>
- *   <li>1 000 blocks                      →   170 XP  (≈ level 10)</li>
- *   <li>5 000 blocks                      →   770 XP  (≈ level 23)</li>
- *   <li>10 000 blocks                     → 1 520 XP  (≈ level 32)</li>
- *   <li>25 000 blocks                     → 3 770 XP  (≈ level 43)</li>
- *   <li>50 000 blocks (typical far)       → 7 520 XP  (≈ level 56)</li>
- *   <li>Cross-dim nearby                  → 2 520 XP  (≈ level 35)</li>
- *   <li>Cross-dim + 50 000 raw blocks     →10 020 XP  (≈ level 64)</li>
- *   <li>Cross-dim max                     →52 220 XP  (= level 125, cap)</li>
+ *   <li>0 blocks      →    20 XP  (≈ level  3)</li>
+ *   <li>500 blocks    →    95 XP  (≈ level  7)</li>
+ *   <li>1 000 blocks  →   170 XP  (≈ level 10)</li>
+ *   <li>10 000 blocks → 1 520 XP  (≈ level 32)</li>
+ *   <li>50 000 blocks → 7 520 XP  (≈ level 56)</li>
+ *   <li>cap (same)    →15 345 XP  (= level 75)</li>
+ *   <li>cap (cross)   →52 220 XP  (= level 125)</li>
  * </ul>
  */
 public final class XpUtil {
-
-    /** Minimum cost – prevents free-spam at zero distance. */
-    public static final int BASE_COST          = 20;
-    /** Raw XP per block of horizontal distance. */
-    public static final double DIST_MULTIPLIER = 0.15;
-    /** Extra XP added whenever the two players are in different dimensions. */
-    public static final int CROSS_DIM_PENALTY  = 2_500;
-    /** Hard cap for same-dimension teleports (= xpForLevel(75)). */
-    public static final int MAX_COST_SAME      = 15_345;
-    /** Hard cap for cross-dimension teleports (= xpForLevel(125)). */
-    public static final int MAX_COST_CROSS     = 52_220;
 
     private XpUtil() {}
 
     // ──────────────────────────────── Cost calculation ───────────────────────
 
     /**
-     * Calculates the XP cost for a teleport.
+     * Calculates the XP cost for a teleport using the standard (Psychic) multiplier.
      *
-     * @param horizontalDistance 2-D (XZ-plane) raw block distance between the two players
-     *                           (pass the actual distance even for cross-dimension teleports).
+     * @param horizontalDistance 2-D (XZ-plane) raw block distance between the two players.
      * @param crossDimension     {@code true} if the players are in different worlds.
      */
     public static int calculateCost(double horizontalDistance, boolean crossDimension) {
-        int cost = BASE_COST + (int) (horizontalDistance * DIST_MULTIPLIER);
-        if (crossDimension) cost += CROSS_DIM_PENALTY;
-        int cap = crossDimension ? MAX_COST_CROSS : MAX_COST_SAME;
+        return calculateCost(horizontalDistance, crossDimension, 1.0);
+    }
+
+    /**
+     * Calculates the XP cost for a teleport with a custom cost multiplier.
+     *
+     * <p>The multiplier is applied to the raw cost <em>before</em> capping, so
+     * Flying-type users ({@code multiplier = flyingCostMultiplier}) reach the
+     * cap at shorter distances than Psychic-type users.
+     *
+     * @param horizontalDistance 2-D (XZ-plane) raw block distance between the two players.
+     * @param crossDimension     {@code true} if the players are in different worlds.
+     * @param multiplier         cost multiplier (1.0 = standard, 1.5 = Flying penalty, etc.).
+     */
+    public static int calculateCost(double horizontalDistance, boolean crossDimension, double multiplier) {
+        TpaConfig cfg = TpaConfig.get();
+        int raw = cfg.baseCost + (int) (horizontalDistance * cfg.distMultiplier);
+        if (crossDimension) raw += cfg.crossDimPenalty;
+        int cost = (int) (raw * multiplier);
+        int cap  = crossDimension ? cfg.maxCostCross : cfg.maxCostSame;
         return Math.min(cost, cap);
     }
 
@@ -72,7 +73,7 @@ public final class XpUtil {
      * Minecraft's {@code totalExperience} field drifts; this recalculates it accurately.
      */
     public static int getTotalXp(PlayerEntity player) {
-        int level    = player.experienceLevel;
+        int level      = player.experienceLevel;
         float progress = player.experienceProgress;
         return xpForLevel(level) + Math.round(progress * xpToNextLevel(level));
     }

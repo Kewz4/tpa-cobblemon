@@ -25,13 +25,15 @@ public final class MessageUtil {
 
     // ─────────────────────────────── Requester messages ──────────────────────
 
-    /** Shown when the requester tries /tpa but has no Psychic Pokémon. */
-    public static Text noPsychicPokemon() {
+    /** Shown when the requester has no usable Psychic or Flying Pokémon. */
+    public static Text noPokemon() {
         return Text.empty()
                 .append(prefix())
                 .append(Text.literal("You need a ").formatted(Formatting.GRAY))
-                .append(Text.literal("Psychic-type Pokémon").formatted(Formatting.LIGHT_PURPLE))
-                .append(Text.literal(" in your party to use TPA!").formatted(Formatting.GRAY));
+                .append(Text.literal("Psychic").formatted(Formatting.LIGHT_PURPLE))
+                .append(Text.literal(" or ").formatted(Formatting.GRAY))
+                .append(Text.literal("Flying").formatted(Formatting.AQUA))
+                .append(Text.literal("-type Pokémon in your party to use TPA!").formatted(Formatting.GRAY));
     }
 
     /** Shown to confirm which Psychic Pokémon is channelling the teleport. */
@@ -41,6 +43,38 @@ public final class MessageUtil {
                 .append(Text.literal("Your ").formatted(Formatting.GRAY))
                 .append(Text.literal(pokemonName).formatted(Formatting.LIGHT_PURPLE, Formatting.ITALIC))
                 .append(Text.literal(" is channelling psychic energy...").formatted(Formatting.GRAY));
+    }
+
+    /** Shown when the teleport is channelled by a Flying-type Pokémon. */
+    public static Text flyingPokemonFound(String pokemonName) {
+        return Text.empty()
+                .append(prefix())
+                .append(Text.literal("Your ").formatted(Formatting.GRAY))
+                .append(Text.literal(pokemonName).formatted(Formatting.AQUA, Formatting.ITALIC))
+                .append(Text.literal(" is carrying you through the skies...").formatted(Formatting.GRAY))
+                .append(Text.literal(" (Flying-type costs 50% more XP)").formatted(Formatting.YELLOW));
+    }
+
+    /**
+     * Shown when the player has both a Psychic and a Flying Pokémon.
+     * Psychic is used (cheaper); player is informed and given a tip.
+     */
+    public static Text usingPsychicOverFlying(String psychicName, String flyingName) {
+        return Text.empty()
+                .append(prefix())
+                .append(Text.literal("Your ").formatted(Formatting.GRAY))
+                .append(Text.literal(psychicName).formatted(Formatting.LIGHT_PURPLE, Formatting.ITALIC))
+                .append(Text.literal(" is channelling psychic energy").formatted(Formatting.GRAY))
+                .append(Text.literal(" (cheaper than ").formatted(Formatting.DARK_GRAY))
+                .append(Text.literal(flyingName).formatted(Formatting.AQUA, Formatting.ITALIC))
+                .append(Text.literal(").\n").formatted(Formatting.DARK_GRAY))
+                .append(prefix())
+                .append(Text.literal("TIP: ").formatted(Formatting.GOLD, Formatting.BOLD))
+                .append(Text.literal("Having a ").formatted(Formatting.GRAY))
+                .append(Text.literal("Psychic").formatted(Formatting.LIGHT_PURPLE))
+                .append(Text.literal("-type Pokémon is cheaper than ").formatted(Formatting.GRAY))
+                .append(Text.literal("Flying").formatted(Formatting.AQUA))
+                .append(Text.literal("!").formatted(Formatting.GRAY));
     }
 
     /** Shown when the requester is on cooldown. */
@@ -138,8 +172,7 @@ public final class MessageUtil {
     }
 
     /**
-     * Shown to the requester when a new request to the same target replaced the old one
-     * because someone else also sent a request to that target.
+     * Shown to the requester when a new request to the same target replaced the old one.
      */
     public static Text requestReplacedBySomeoneElse(String targetName) {
         return Text.empty()
@@ -154,8 +187,8 @@ public final class MessageUtil {
     /**
      * The main notification box shown to the target with clickable Accept / Deny buttons.
      *
-     * @param requesterName display name of the player who sent the request.
-     * @param xpCost        XP that will be deducted from the requester on acceptance.
+     * @param requesterName  display name of the player who sent the request.
+     * @param xpCost         XP that will be deducted from the requester on acceptance.
      * @param expiresSeconds seconds until the request auto-expires.
      */
     public static Text incomingRequest(String requesterName, int xpCost, long expiresSeconds) {
@@ -183,7 +216,7 @@ public final class MessageUtil {
                 .append(Text.literal(" ✦ ").formatted(Formatting.LIGHT_PURPLE))
                 .append(Text.literal("Teleport Request").formatted(Formatting.WHITE, Formatting.BOLD))
                 .append(Text.literal(" ✦\n").formatted(Formatting.LIGHT_PURPLE))
-                .append(Text.literal(" ").formatted(Formatting.GRAY))
+                .append(Text.literal(" "))
                 .append(Text.literal(requesterName).formatted(Formatting.AQUA, Formatting.BOLD))
                 .append(Text.literal(" wants to teleport to you!\n").formatted(Formatting.GRAY))
                 .append(Text.literal(" XP cost: ").formatted(Formatting.DARK_GRAY))
