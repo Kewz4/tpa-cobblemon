@@ -22,26 +22,26 @@ import net.minecraft.entity.player.PlayerEntity;
  *
  * <p>Example costs (same dimension, server players spread ~50 000 blocks from spawn):
  * <ul>
- *   <li>Same spot / nearby (0 blocks)    →    50 XP  (≈ level  5)</li>
- *   <li>500 blocks                        →   200 XP  (≈ level 11)</li>
- *   <li>1 000 blocks                      →   350 XP  (≈ level 16)</li>
- *   <li>5 000 blocks                      → 1 550 XP  (≈ level 32)</li>
- *   <li>10 000 blocks                     → 3 050 XP  (≈ level 40)</li>
- *   <li>25 000 blocks                     → 7 550 XP  (≈ level 57)</li>
- *   <li>50 000 blocks (typical far)       →15 345 XP  (= level 75, cap)</li>
- *   <li>Cross-dim nearby                  → 5 050 XP  (≈ level 49)</li>
- *   <li>Cross-dim + 50 000 raw blocks     →20 050 XP  (≈ level 100)</li>
+ *   <li>Same spot / nearby (0 blocks)    →    20 XP  (≈ level  3)</li>
+ *   <li>500 blocks                        →    95 XP  (≈ level  7)</li>
+ *   <li>1 000 blocks                      →   170 XP  (≈ level 10)</li>
+ *   <li>5 000 blocks                      →   770 XP  (≈ level 23)</li>
+ *   <li>10 000 blocks                     → 1 520 XP  (≈ level 32)</li>
+ *   <li>25 000 blocks                     → 3 770 XP  (≈ level 43)</li>
+ *   <li>50 000 blocks (typical far)       → 7 520 XP  (≈ level 56)</li>
+ *   <li>Cross-dim nearby                  → 2 520 XP  (≈ level 35)</li>
+ *   <li>Cross-dim + 50 000 raw blocks     →10 020 XP  (≈ level 64)</li>
  *   <li>Cross-dim max                     →52 220 XP  (= level 125, cap)</li>
  * </ul>
  */
 public final class XpUtil {
 
     /** Minimum cost – prevents free-spam at zero distance. */
-    public static final int BASE_COST          = 50;
+    public static final int BASE_COST          = 20;
     /** Raw XP per block of horizontal distance. */
-    public static final double DIST_MULTIPLIER = 0.30;
+    public static final double DIST_MULTIPLIER = 0.15;
     /** Extra XP added whenever the two players are in different dimensions. */
-    public static final int CROSS_DIM_PENALTY  = 5_000;
+    public static final int CROSS_DIM_PENALTY  = 2_500;
     /** Hard cap for same-dimension teleports (= xpForLevel(75)). */
     public static final int MAX_COST_SAME      = 15_345;
     /** Hard cap for cross-dimension teleports (= xpForLevel(125)). */
