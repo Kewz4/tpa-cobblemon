@@ -41,7 +41,10 @@ public final class CobblemonUtil {
             Class<?> pokemonCls       = Class.forName("com.cobblemon.mod.common.pokemon.Pokemon");
             Class<?> elementalTypeCls = Class.forName("com.cobblemon.mod.common.api.types.ElementalType");
 
-            cobblemonInstance = cobblemonCls.getField("INSTANCE").get(null);
+            // Resolve all methods before touching cobblemonInstance so that
+            // a partial failure leaves cobblemonInstance null and init() returns
+            // false on subsequent calls rather than silently NPE-ing.
+            Object instance = cobblemonCls.getField("INSTANCE").get(null);
             getStorage     = cobblemonCls.getMethod("getStorage");
             getParty       = storageCls.getMethod("getParty", ServerPlayerEntity.class);
             isFainted      = pokemonCls.getMethod("isFainted");
@@ -49,6 +52,7 @@ public final class CobblemonUtil {
             getDisplayName = pokemonCls.getMethod("getDisplayName");
             getString      = Class.forName("net.minecraft.text.MutableText").getMethod("getString");
             getTypeName    = elementalTypeCls.getMethod("getName");
+            cobblemonInstance = instance; // only set after everything succeeded
 
             TpaCobblemon.LOGGER.info("[TPA Cobblemon] Cobblemon API linked successfully.");
             return true;
@@ -89,7 +93,7 @@ public final class CobblemonUtil {
                 }
             }
         } catch (Exception e) {
-            TpaCobblemon.LOGGER.debug("[TPA Cobblemon] Error reading Cobblemon party: " + e.getMessage());
+            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Error reading Cobblemon party: " + e);
         }
         return null;
     }
