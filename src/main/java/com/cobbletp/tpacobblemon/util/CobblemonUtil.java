@@ -36,10 +36,13 @@ public final class CobblemonUtil {
         if (resolved) return cobblemonInstance != null;
         resolved = true;
         try {
-            Class<?> cobblemonCls     = Class.forName("com.cobblemon.mod.common.Cobblemon");
-            Class<?> storageCls       = Class.forName("com.cobblemon.mod.common.api.storage.StorageManager");
-            Class<?> pokemonCls       = Class.forName("com.cobblemon.mod.common.pokemon.Pokemon");
-            Class<?> elementalTypeCls = Class.forName("com.cobblemon.mod.common.api.types.ElementalType");
+            // Use the thread context class loader so Fabric's KnotClassLoader
+            // is used, which has access to all loaded mod classes.
+            ClassLoader cl = Thread.currentThread().getContextClassLoader();
+            Class<?> cobblemonCls     = Class.forName("com.cobblemon.mod.common.Cobblemon", true, cl);
+            Class<?> storageCls       = Class.forName("com.cobblemon.mod.common.api.storage.StorageManager", true, cl);
+            Class<?> pokemonCls       = Class.forName("com.cobblemon.mod.common.pokemon.Pokemon", true, cl);
+            Class<?> elementalTypeCls = Class.forName("com.cobblemon.mod.common.api.types.ElementalType", true, cl);
 
             // Resolve all methods before touching cobblemonInstance so that
             // a partial failure leaves cobblemonInstance null and init() returns
@@ -50,7 +53,7 @@ public final class CobblemonUtil {
             isFainted      = pokemonCls.getMethod("isFainted");
             getTypes       = pokemonCls.getMethod("getTypes");
             getDisplayName = pokemonCls.getMethod("getDisplayName");
-            getString      = Class.forName("net.minecraft.text.MutableText").getMethod("getString");
+            getString      = Class.forName("net.minecraft.text.MutableText", true, cl).getMethod("getString");
             getTypeName    = elementalTypeCls.getMethod("getName");
             cobblemonInstance = instance; // only set after everything succeeded
 
