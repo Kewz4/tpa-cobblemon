@@ -32,17 +32,33 @@ public final class CobblemonUtil {
      *
      * @return {@code true} if Cobblemon is present and all methods were found.
      */
+    /**
+     * Tries to load a class by name using several class loaders in order:
+     * our own loader (KnotClassLoader), the thread context loader, and the
+     * system loader.  This covers every realistic Fabric deployment layout.
+     */
+    private static Class<?> loadClass(String name) throws ClassNotFoundException {
+        ClassLoader[] loaders = {
+            CobblemonUtil.class.getClassLoader(),
+            Thread.currentThread().getContextClassLoader(),
+            ClassLoader.getSystemClassLoader()
+        };
+        for (ClassLoader cl : loaders) {
+            if (cl == null) continue;
+            try { return Class.forName(name, true, cl); }
+            catch (ClassNotFoundException ignored) {}
+        }
+        throw new ClassNotFoundException(name);
+    }
+
     private static boolean init() {
         if (resolved) return cobblemonInstance != null;
         resolved = true;
         try {
-            // Use the thread context class loader so Fabric's KnotClassLoader
-            // is used, which has access to all loaded mod classes.
-            ClassLoader cl = Thread.currentThread().getContextClassLoader();
-            Class<?> cobblemonCls     = Class.forName("com.cobblemon.mod.common.Cobblemon", true, cl);
-            Class<?> storageCls       = Class.forName("com.cobblemon.mod.common.api.storage.StorageManager", true, cl);
-            Class<?> pokemonCls       = Class.forName("com.cobblemon.mod.common.pokemon.Pokemon", true, cl);
-            Class<?> elementalTypeCls = Class.forName("com.cobblemon.mod.common.api.types.ElementalType", true, cl);
+            Class<?> cobblemonCls     = loadClass("com.cobblemon.mod.common.Cobblemon");
+            Class<?> storageCls       = loadClass("com.cobblemon.mod.common.api.storage.StorageManager");
+            Class<?> pokemonCls       = loadClass("com.cobblemon.mod.common.pokemon.Pokemon");
+            Class<?> elementalTypeCls = loadClass("com.cobblemon.mod.common.api.types.ElementalType");
 
             // Resolve all methods before touching cobblemonInstance so that
             // a partial failure leaves cobblemonInstance null and init() returns
@@ -53,16 +69,16 @@ public final class CobblemonUtil {
             isFainted      = pokemonCls.getMethod("isFainted");
             getTypes       = pokemonCls.getMethod("getTypes");
             getDisplayName = pokemonCls.getMethod("getDisplayName");
-            getString      = Class.forName("net.minecraft.text.MutableText", true, cl).getMethod("getString");
+            getString      = loadClass("net.minecraft.text.MutableText").getMethod("getString");
             getTypeName    = elementalTypeCls.getMethod("getName");
             cobblemonInstance = instance; // only set after everything succeeded
 
             TpaCobblemon.LOGGER.info("[TPA Cobblemon] Cobblemon API linked successfully.");
             return true;
         } catch (ClassNotFoundException e) {
-            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Cobblemon not found – TPA will be unavailable.");
+            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Cobblemon class not found: '{}' – TPA will be unavailable.", e.getMessage());
         } catch (Exception e) {
-            TpaCobblemon.LOGGER.error("[TPA Cobblemon] Failed to link Cobblemon API: " + e.getMessage());
+            TpaCobblemon.LOGGER.error("[TPA Cobblemon] Failed to link Cobblemon API: {}", e.toString());
         }
         return false;
     }
