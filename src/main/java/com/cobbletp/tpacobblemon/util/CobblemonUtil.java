@@ -22,9 +22,10 @@ public final class CobblemonUtil {
     private static boolean getPartyTakesPlayer; // true = ServerPlayerEntity, false = UUID
     private static Method isFainted;
     private static Method getTypes;
-    private static Method getDisplayName;
-    private static Method getString;
+    private static Method getSpecies;
     private static Method getTypeName;
+    // getSpeciesName is resolved lazily from the actual Species object at runtime.
+    private static Method getSpeciesName;
 
     /**
      * Tries to load a class by name using several class loaders in order:
@@ -67,12 +68,10 @@ public final class CobblemonUtil {
                 getPartyTakesPlayer = false;
             }
 
-            isFainted      = pokemonCls.getMethod("isFainted");
-            getTypes       = pokemonCls.getMethod("getTypes");
-            getDisplayName = pokemonCls.getMethod("getDisplayName");
-            // getString is looked up lazily from the actual display-name object in
-            // findPokemonOfType(), so we never need to know the Text/MutableText class name.
-
+            isFainted  = pokemonCls.getMethod("isFainted");
+            getTypes   = pokemonCls.getMethod("getTypes");
+            getSpecies = pokemonCls.getMethod("getSpecies");
+            // getSpeciesName resolved lazily from the actual Species object (avoids hardcoding class name).
             getTypeName = elementalTypeCls.getMethod("getName");
             cobblemonInstance = instance; // only set after everything succeeded
 
@@ -155,13 +154,12 @@ public final class CobblemonUtil {
                 for (Object type : (Iterable<?>) getTypes.invoke(pokemon)) {
                     String name = (String) getTypeName.invoke(type);
                     if (typeName.equalsIgnoreCase(name)) {
-                        Object displayName = getDisplayName.invoke(pokemon);
-                        // Resolve getString lazily from the actual object so we never
-                        // need to know whether the class is Text, MutableText, or something else.
-                        if (getString == null) {
-                            getString = displayName.getClass().getMethod("getString");
+                        Object species = getSpecies.invoke(pokemon);
+                        // Resolve getName lazily from the actual Species class (avoids hardcoding it).
+                        if (getSpeciesName == null) {
+                            getSpeciesName = species.getClass().getMethod("getName");
                         }
-                        return (String) getString.invoke(displayName);
+                        return (String) getSpeciesName.invoke(species);
                     }
                 }
             }
