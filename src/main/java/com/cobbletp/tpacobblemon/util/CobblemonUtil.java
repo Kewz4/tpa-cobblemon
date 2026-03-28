@@ -80,7 +80,56 @@ public final class CobblemonUtil {
         } catch (Exception e) {
             TpaCobblemon.LOGGER.error("[TPA Cobblemon] Failed to link Cobblemon API: {}", e.toString());
         }
+        // Reset so the next attempt (e.g. on first /tpa) can retry.
+        resolved = false;
         return false;
+    }
+
+    /**
+     * Called once at server-start to eagerly link the Cobblemon API and emit
+     * detailed diagnostic output.  Logs every step so failures are immediately
+     * visible in the server log without needing to run a command first.
+     */
+    public static void diagnose() {
+        TpaCobblemon.LOGGER.info("[TPA Cobblemon] --- Cobblemon link diagnostic ---");
+
+        // Reset so diagnose() always does a fresh attempt.
+        resolved = false;
+        cobblemonInstance = null;
+
+        String[] classes = {
+            "com.cobblemon.mod.common.Cobblemon",
+            "com.cobblemon.mod.common.api.storage.StorageManager",
+            "com.cobblemon.mod.common.pokemon.Pokemon",
+            "com.cobblemon.mod.common.api.types.ElementalType",
+            "net.minecraft.text.MutableText"
+        };
+        boolean allClassesFound = true;
+        for (String cls : classes) {
+            try {
+                loadClass(cls);
+                TpaCobblemon.LOGGER.info("[TPA Cobblemon]   [OK] class found: {}", cls);
+            } catch (ClassNotFoundException e) {
+                TpaCobblemon.LOGGER.warn("[TPA Cobblemon]   [MISSING] class not found: {}", cls);
+                allClassesFound = false;
+            }
+        }
+
+        if (!allClassesFound) {
+            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] One or more Cobblemon classes are missing.");
+            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Make sure Cobblemon is installed and the jar is in the mods folder.");
+            TpaCobblemon.LOGGER.info("[TPA Cobblemon] --- end diagnostic ---");
+            return;
+        }
+
+        // All classes found – now attempt full link.
+        if (init()) {
+            TpaCobblemon.LOGGER.info("[TPA Cobblemon] Full link successful – party type detection is active.");
+        } else {
+            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Classes found but API link failed (see errors above).");
+            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Check that your Cobblemon version matches the expected API.");
+        }
+        TpaCobblemon.LOGGER.info("[TPA Cobblemon] --- end diagnostic ---");
     }
 
     /**
