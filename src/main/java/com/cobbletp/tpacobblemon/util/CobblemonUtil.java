@@ -9,8 +9,6 @@ import java.lang.reflect.Method;
  * Cobblemon API wrapper using reflection so the mod compiles (and loads) even if
  * Cobblemon is absent.  At runtime on a Cobblemon server all calls will succeed
  * normally; on a server without Cobblemon all {@code find*} methods return null.
- *
- * Tested against Cobblemon 1.6.x (Fabric, 1.21.1).
  */
 public final class CobblemonUtil {
 
@@ -21,17 +19,13 @@ public final class CobblemonUtil {
     private static Object cobblemonInstance;
     private static Method getStorage;
     private static Method getParty;
+    private static boolean getPartyTakesPlayer; // true = ServerPlayerEntity, false = UUID
     private static Method isFainted;
     private static Method getTypes;
     private static Method getDisplayName;
     private static Method getString;
     private static Method getTypeName;
 
-    /**
-     * Attempts to load all required Cobblemon reflection targets.
-     *
-     * @return {@code true} if Cobblemon is present and all methods were found.
-     */
     /**
      * Tries to load a class by name using several class loaders in order:
      * our own loader (KnotClassLoader), the thread context loader, and the
@@ -56,24 +50,44 @@ public final class CobblemonUtil {
         resolved = true;
         try {
             Class<?> cobblemonCls     = loadClass("com.cobblemon.mod.common.Cobblemon");
-            Class<?> storageCls       = loadClass("com.cobblemon.mod.common.api.storage.StorageManager");
             Class<?> pokemonCls       = loadClass("com.cobblemon.mod.common.pokemon.Pokemon");
             Class<?> elementalTypeCls = loadClass("com.cobblemon.mod.common.api.types.ElementalType");
 
-            // Resolve all methods before touching cobblemonInstance so that
-            // a partial failure leaves cobblemonInstance null and init() returns
-            // false on subsequent calls rather than silently NPE-ing.
             Object instance = cobblemonCls.getField("INSTANCE").get(null);
-            getStorage     = cobblemonCls.getMethod("getStorage");
-            getParty       = storageCls.getMethod("getParty", ServerPlayerEntity.class);
+            getStorage = cobblemonCls.getMethod("getStorage");
+
+            // Find getParty on the actual storage object rather than by class name,
+            // since StorageManager's package differs across Cobblemon versions.
+            Object storageObj = getStorage.invoke(instance);
+            try {
+                getParty = storageObj.getClass().getMethod("getParty", ServerPlayerEntity.class);
+                getPartyTakesPlayer = true;
+            } catch (NoSuchMethodException e) {
+                getParty = storageObj.getClass().getMethod("getParty", java.util.UUID.class);
+                getPartyTakesPlayer = false;
+            }
+
             isFainted      = pokemonCls.getMethod("isFainted");
             getTypes       = pokemonCls.getMethod("getTypes");
             getDisplayName = pokemonCls.getMethod("getDisplayName");
-            getString      = loadClass("net.minecraft.text.MutableText").getMethod("getString");
-            getTypeName    = elementalTypeCls.getMethod("getName");
+
+            // getString: try MutableText first (older MC), then Text interface (newer MC).
+            getString = null;
+            for (String textClass : new String[]{
+                    "net.minecraft.text.MutableText",
+                    "net.minecraft.text.Text"}) {
+                try {
+                    getString = loadClass(textClass).getMethod("getString");
+                    break;
+                } catch (ClassNotFoundException ignored) {}
+            }
+            if (getString == null) throw new NoSuchMethodException("getString not found on MutableText or Text");
+
+            getTypeName = elementalTypeCls.getMethod("getName");
             cobblemonInstance = instance; // only set after everything succeeded
 
-            TpaCobblemon.LOGGER.info("[TPA Cobblemon] Cobblemon API linked successfully.");
+            TpaCobblemon.LOGGER.info("[TPA Cobblemon] Cobblemon API linked successfully (getParty takes {}).",
+                    getPartyTakesPlayer ? "ServerPlayerEntity" : "UUID");
             return true;
         } catch (ClassNotFoundException e) {
             TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Cobblemon class not found: '{}' – TPA will be unavailable.", e.getMessage());
@@ -87,8 +101,7 @@ public final class CobblemonUtil {
 
     /**
      * Called once at server-start to eagerly link the Cobblemon API and emit
-     * detailed diagnostic output.  Logs every step so failures are immediately
-     * visible in the server log without needing to run a command first.
+     * detailed diagnostic output.
      */
     public static void diagnose() {
         TpaCobblemon.LOGGER.info("[TPA Cobblemon] --- Cobblemon link diagnostic ---");
@@ -97,37 +110,48 @@ public final class CobblemonUtil {
         resolved = false;
         cobblemonInstance = null;
 
-        String[] classes = {
+        // These are the classes we still look up by name.
+        String[] namedClasses = {
             "com.cobblemon.mod.common.Cobblemon",
-            "com.cobblemon.mod.common.api.storage.StorageManager",
             "com.cobblemon.mod.common.pokemon.Pokemon",
-            "com.cobblemon.mod.common.api.types.ElementalType",
-            "net.minecraft.text.MutableText"
+            "com.cobblemon.mod.common.api.types.ElementalType"
         };
-        boolean allClassesFound = true;
-        for (String cls : classes) {
+        boolean allFound = true;
+        for (String cls : namedClasses) {
             try {
                 loadClass(cls);
                 TpaCobblemon.LOGGER.info("[TPA Cobblemon]   [OK] class found: {}", cls);
             } catch (ClassNotFoundException e) {
                 TpaCobblemon.LOGGER.warn("[TPA Cobblemon]   [MISSING] class not found: {}", cls);
-                allClassesFound = false;
+                allFound = false;
             }
         }
 
-        if (!allClassesFound) {
-            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] One or more Cobblemon classes are missing.");
-            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Make sure Cobblemon is installed and the jar is in the mods folder.");
+        // Text class: one of these must exist.
+        boolean textFound = false;
+        for (String textCls : new String[]{"net.minecraft.text.MutableText", "net.minecraft.text.Text"}) {
+            try {
+                loadClass(textCls);
+                TpaCobblemon.LOGGER.info("[TPA Cobblemon]   [OK] text class found: {}", textCls);
+                textFound = true;
+                break;
+            } catch (ClassNotFoundException ignored) {}
+        }
+        if (!textFound) {
+            TpaCobblemon.LOGGER.warn("[TPA Cobblemon]   [MISSING] neither MutableText nor Text found");
+            allFound = false;
+        }
+
+        if (!allFound) {
+            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] One or more required classes are missing.");
             TpaCobblemon.LOGGER.info("[TPA Cobblemon] --- end diagnostic ---");
             return;
         }
 
-        // All classes found – now attempt full link.
         if (init()) {
             TpaCobblemon.LOGGER.info("[TPA Cobblemon] Full link successful – party type detection is active.");
         } else {
             TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Classes found but API link failed (see errors above).");
-            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Check that your Cobblemon version matches the expected API.");
         }
         TpaCobblemon.LOGGER.info("[TPA Cobblemon] --- end diagnostic ---");
     }
@@ -138,14 +162,15 @@ public final class CobblemonUtil {
      *
      * @param typeName case-insensitive Cobblemon type name, e.g. {@code "psychic"}
      *                 or {@code "flying"}.
-     * @return display name of the matching Pokémon (e.g. {@code "Ralts"}),
-     *         or {@code null} if none found (or Cobblemon is not installed).
+     * @return display name of the matching Pokémon, or {@code null} if none found.
      */
     public static String findPokemonOfType(ServerPlayerEntity player, String typeName) {
         if (!init()) return null;
         try {
             Object storage = getStorage.invoke(cobblemonInstance);
-            Object party   = getParty.invoke(storage, player);
+            Object party   = getPartyTakesPlayer
+                    ? getParty.invoke(storage, player)
+                    : getParty.invoke(storage, player.getUuid());
             if (party == null) return null;
 
             for (Object pokemon : (Iterable<?>) party) {
@@ -161,7 +186,7 @@ public final class CobblemonUtil {
                 }
             }
         } catch (Exception e) {
-            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Error reading Cobblemon party: " + e);
+            TpaCobblemon.LOGGER.warn("[TPA Cobblemon] Error reading Cobblemon party: {}", e.toString());
         }
         return null;
     }
