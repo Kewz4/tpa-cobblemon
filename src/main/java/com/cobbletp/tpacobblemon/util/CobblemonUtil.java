@@ -70,18 +70,8 @@ public final class CobblemonUtil {
             isFainted      = pokemonCls.getMethod("isFainted");
             getTypes       = pokemonCls.getMethod("getTypes");
             getDisplayName = pokemonCls.getMethod("getDisplayName");
-
-            // getString: try MutableText first (older MC), then Text interface (newer MC).
-            getString = null;
-            for (String textClass : new String[]{
-                    "net.minecraft.text.MutableText",
-                    "net.minecraft.text.Text"}) {
-                try {
-                    getString = loadClass(textClass).getMethod("getString");
-                    break;
-                } catch (ClassNotFoundException ignored) {}
-            }
-            if (getString == null) throw new NoSuchMethodException("getString not found on MutableText or Text");
+            // getString is looked up lazily from the actual display-name object in
+            // findPokemonOfType(), so we never need to know the Text/MutableText class name.
 
             getTypeName = elementalTypeCls.getMethod("getName");
             cobblemonInstance = instance; // only set after everything succeeded
@@ -127,21 +117,6 @@ public final class CobblemonUtil {
             }
         }
 
-        // Text class: one of these must exist.
-        boolean textFound = false;
-        for (String textCls : new String[]{"net.minecraft.text.MutableText", "net.minecraft.text.Text"}) {
-            try {
-                loadClass(textCls);
-                TpaCobblemon.LOGGER.info("[TPA Cobblemon]   [OK] text class found: {}", textCls);
-                textFound = true;
-                break;
-            } catch (ClassNotFoundException ignored) {}
-        }
-        if (!textFound) {
-            TpaCobblemon.LOGGER.warn("[TPA Cobblemon]   [MISSING] neither MutableText nor Text found");
-            allFound = false;
-        }
-
         if (!allFound) {
             TpaCobblemon.LOGGER.warn("[TPA Cobblemon] One or more required classes are missing.");
             TpaCobblemon.LOGGER.info("[TPA Cobblemon] --- end diagnostic ---");
@@ -181,6 +156,11 @@ public final class CobblemonUtil {
                     String name = (String) getTypeName.invoke(type);
                     if (typeName.equalsIgnoreCase(name)) {
                         Object displayName = getDisplayName.invoke(pokemon);
+                        // Resolve getString lazily from the actual object so we never
+                        // need to know whether the class is Text, MutableText, or something else.
+                        if (getString == null) {
+                            getString = displayName.getClass().getMethod("getString");
+                        }
                         return (String) getString.invoke(displayName);
                     }
                 }
